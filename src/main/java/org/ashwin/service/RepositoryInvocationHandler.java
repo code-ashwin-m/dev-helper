@@ -107,8 +107,14 @@ public class RepositoryInvocationHandler implements InvocationHandler {
         if (method.isAnnotationPresent(Query.class)){
             String sql = method.getAnnotation(Query.class).value();
             return executeQuery(sql, args, conn, method.getReturnType());
+        } else if (method.isAnnotationPresent(Update.class)) {
+            String sql = method.getAnnotation(Update.class).value();
+            return executeUpdate(sql, args, conn);
+        } else if ( method.isAnnotationPresent(Delete.class)) {
+            String sql = method.getAnnotation(Delete.class).value();
+            return executeUpdate(sql, args, conn);
         }
-        
+
         String methodName = method.getName();
 
         if ( methodName.equals("save")){
@@ -150,6 +156,18 @@ public class RepositoryInvocationHandler implements InvocationHandler {
                 }
                 return null;
             }
+        }
+    }
+
+    private Object executeUpdate(String sql, Object[] args, Connection conn) throws Exception {
+        System.out.println("Executing SQL: " + sql);
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            if (args != null) {
+                for (int i = 0; i < args.length; i++) {
+                    stmt.setObject(i + 1, args[i]);
+                }
+            }
+            return stmt.executeUpdate();
         }
     }
 
