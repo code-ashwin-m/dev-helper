@@ -1,0 +1,12 @@
+package org.ashwin.example1;
+
+import org.ashwin.service.annotations.IdGenerator;
+
+import java.util.UUID;
+
+public class UUIDGenerator implements IdGenerator {
+    @Override
+    public Object generate() {
+        return UUID.randomUUID().toString();
+    }
+}
