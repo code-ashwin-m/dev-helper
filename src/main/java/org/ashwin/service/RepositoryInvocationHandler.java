@@ -16,11 +16,70 @@ public class RepositoryInvocationHandler implements InvocationHandler {
     public RepositoryInvocationHandler(EntityMeta meta, Class<?> databaseConfigClass) throws Exception {
         this.meta = meta;
         this.databaseConfigClass = databaseConfigClass;
-        createTableIfNotExists();
     }
 
-    private void createTableIfNotExists() throws Exception {
+    private String toSqlType(Class<?> type, String dbType) {
+        if (type == int.class || type == Integer.class) {
+            if (dbType == "sqlite") return "INTEGER";
+
+            return "INT";
+        }
+        if (type == long.class || type == Long.class) return "BIGINT";
+        if (type == String.class) return "VARCHAR(255)";
+        if (type == boolean.class || type == Boolean.class) {
+            if (dbType.equals("sqlite")) return "BOOLEAN"; // SQLite treats as INTEGER 0/1
+            return "BOOLEAN";
+        }
+        if (type == double.class || type == Double.class) return "DOUBLE";
+        return "TEXT";
+    }
+
+    private String detectDbType(String url) {
+        if (url.startsWith("jdbc:sqlite")) return "sqlite";
+        if (url.startsWith("jdbc:mysql")) return "mysql";
+        if (url.startsWith("jdbc:postgresql")) return "postgres";
+        if (url.startsWith("jdbc:h2")) return "h2";
+        return "generic";
+    }
+
+    @Override
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         Connection conn = ConnectionFactory.getConnection(databaseConfigClass);
+        
+        if (method.isAnnotationPresent(Query.class)){
+            String sql = method.getAnnotation(Query.class).value();
+            return executeQuery(sql, args, conn, method.getReturnType());
+        } else if (method.isAnnotationPresent(Update.class)) {
+            String sql = method.getAnnotation(Update.class).value();
+            return executeUpdate(sql, args, conn);
+        } else if ( method.isAnnotationPresent(Delete.class)) {
+            String sql = method.getAnnotation(Delete.class).value();
+            return executeUpdate(sql, args, conn);
+        }
+
+        String methodName = method.getName();
+
+        if ( methodName.equals("create")){
+            return create(args[0], conn);
+        } else if (methodName.equals("findById")) {
+            return findById(args[0], conn);
+        } else if (methodName.startsWith("findBy")) {
+            String column = methodName.substring("findBy".length());
+            column = Character.toLowerCase(column.charAt(0)) + column.substring(1);
+            return findByColumn(column, args[0], conn);
+        } else if (methodName.equals("update")) {
+            return update(args[0], conn);
+        } else if (methodName.equals("delete")) {
+            return delete(args[0], conn);
+        } else if (methodName.equals("deleteById"))  {
+            return deleteById(args[0], conn);
+        } else if (methodName.equals("createTableIfNotExists"))  {
+            return createTableIfNotExists(conn);
+        }
+        throw new UnsupportedOperationException("Method not supported: " + methodName);
+    }
+
+    private Object createTableIfNotExists(Connection conn) throws Exception {
         String url = conn.getMetaData().getURL().toLowerCase();
         String dbType = detectDbType(url);
 
@@ -74,65 +133,7 @@ public class RepositoryInvocationHandler implements InvocationHandler {
         try (Statement stmt = conn.createStatement()) {
             stmt.executeUpdate(sql.toString());
         }
-    }
-
-    private String toSqlType(Class<?> type, String dbType) {
-        if (type == int.class || type == Integer.class) {
-            if (dbType == "sqlite") return "INTEGER";
-
-            return "INT";
-        }
-        if (type == long.class || type == Long.class) return "BIGINT";
-        if (type == String.class) return "VARCHAR(255)";
-        if (type == boolean.class || type == Boolean.class) {
-            if (dbType.equals("sqlite")) return "BOOLEAN"; // SQLite treats as INTEGER 0/1
-            return "BOOLEAN";
-        }
-        if (type == double.class || type == Double.class) return "DOUBLE";
-        return "TEXT";
-    }
-
-    private String detectDbType(String url) {
-        if (url.startsWith("jdbc:sqlite")) return "sqlite";
-        if (url.startsWith("jdbc:mysql")) return "mysql";
-        if (url.startsWith("jdbc:postgresql")) return "postgres";
-        if (url.startsWith("jdbc:h2")) return "h2";
-        return "generic";
-    }
-
-    @Override
-    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-        Connection conn = ConnectionFactory.getConnection(databaseConfigClass);
-        
-        if (method.isAnnotationPresent(Query.class)){
-            String sql = method.getAnnotation(Query.class).value();
-            return executeQuery(sql, args, conn, method.getReturnType());
-        } else if (method.isAnnotationPresent(Update.class)) {
-            String sql = method.getAnnotation(Update.class).value();
-            return executeUpdate(sql, args, conn);
-        } else if ( method.isAnnotationPresent(Delete.class)) {
-            String sql = method.getAnnotation(Delete.class).value();
-            return executeUpdate(sql, args, conn);
-        }
-
-        String methodName = method.getName();
-
-        if ( methodName.equals("save")){
-            return save(args[0], conn);
-        } else if (methodName.equals("findById")) {
-            return findById(args[0], conn);
-        } else if (methodName.startsWith("findBy")) {
-            String column = methodName.substring("findBy".length());
-            column = Character.toLowerCase(column.charAt(0)) + column.substring(1);
-            return findByColumn(column, args[0], conn);
-        } else if (methodName.equals("update")) {
-            return update(args[0], conn);
-        } else if (methodName.equals("delete")) {
-            return delete(args[0], conn);
-        } else if (methodName.equals("deleteById"))  {
-            return deleteById(args[0], conn);
-        }
-        throw new UnsupportedOperationException("Method not supported: " + methodName);
+        return true;
     }
 
     private Object executeQuery(String sql, Object[] args, Connection conn, Class<?> returnType) throws Exception {
@@ -180,10 +181,11 @@ public class RepositoryInvocationHandler implements InvocationHandler {
         return obj;
     }
 
-    private Object save(Object entity, Connection conn) throws Exception {
+    private Object create(Object entity, Connection conn) throws Exception {
         StringBuffer sql = new StringBuffer("INSERT INTO " + meta.getTableName() + " (");
         StringBuffer placeholders = new StringBuffer("VALUES (");
         List<Object> values = new ArrayList<>();
+        Object idValue = null;
 
         boolean isGenerated = meta.getIdField().isAnnotationPresent(GeneratedId.class);
         GeneratedId gid = isGenerated ? meta.getIdField().getAnnotation(GeneratedId.class) : null;
@@ -201,7 +203,7 @@ public class RepositoryInvocationHandler implements InvocationHandler {
 
                 if (gid.strategy() == GenerationType.CUSTOM) {
                     IdGenerator gen = gid.generator().getConstructor().newInstance();
-                    Object idValue = gen.generate();
+                    idValue = gen.generate();
                     meta.getIdField().set(entity, idValue);
                 }
             }
@@ -218,8 +220,6 @@ public class RepositoryInvocationHandler implements InvocationHandler {
 
         sql.append(") ").append(placeholders).append(")");
 
-        System.out.println(sql.toString());
-
         try (PreparedStatement stmt = conn.prepareStatement(sql.toString(), Statement.RETURN_GENERATED_KEYS)) {
             for (int i = 0; i < values.size(); i++) {
                 stmt.setObject(i + 1, values.get(i));
@@ -229,11 +229,12 @@ public class RepositoryInvocationHandler implements InvocationHandler {
             if (isGenerated && gid.strategy() == GenerationType.AUTO) {
                 ResultSet keys = stmt.getGeneratedKeys();
                 if (keys.next()) {
-                    meta.getIdField().set(entity, keys.getObject(1));
+                    idValue = keys.getObject(1);
+                    meta.getIdField().set(entity, idValue);
                 }
             }
         }
-        return entity;
+        return idValue;
     }
 
     private Object findById(Object id, Connection conn) throws Exception {
@@ -294,15 +295,13 @@ public class RepositoryInvocationHandler implements InvocationHandler {
                 .append(" = ?");
         values.add(idValue);
 
-        System.out.println(sql.toString());
-
         try (PreparedStatement stmt = conn.prepareStatement(sql.toString())) {
             for (int i = 0; i < values.size(); i++) {
                 stmt.setObject(i + 1, values.get(i));
             }
             stmt.executeUpdate();
         }
-        return entity;
+        return true;
     }
 
     private Object delete(Object entity, Connection conn) throws Exception {
@@ -330,6 +329,6 @@ public class RepositoryInvocationHandler implements InvocationHandler {
             stmt.setObject(1, id);
             stmt.executeUpdate();
         }
-        return null;
+        return true;
     }
 }

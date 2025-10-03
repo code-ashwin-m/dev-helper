@@ -2,19 +2,20 @@ package org.ashwin.example1;
 
 import org.ashwin.service.annotations.Query;
 import org.ashwin.service.annotations.Repository;
-
+import org.ashwin.service.interfaces.BaseRepository;
 import java.util.List;
 
 @Repository(entity = User.class)
-public interface UserRepository {
-    User save(User user);
-    User findById(int id);
+public interface UserRepository extends BaseRepository<User> {
+
     List<User> findByUsername(String username);
+
     List<User> findByEmail(String email);
+
     @Query("SELECT * FROM users WHERE email = ?")
     List<User> findUsersByEmail(String email);
+
     @Query("SELECT * FROM users WHERE username = ? AND email = ?")
     User findUserByUsernameAndEmail(String username, String email);
-    void deleteById(int id);
-    void update(User user);
+
 }

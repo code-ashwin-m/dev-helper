@@ -10,8 +10,11 @@ public class UserService {
     @Autowired
     private UserRepository userRepository;
 
-    public void createUser(User user) throws Exception {
-        userRepository.save(user);
+    public void createTableIfNotExists() {
+        userRepository.createTableIfNotExists();
+    }
+    public int createUser(User user) throws Exception {
+        return (int) userRepository.create(user);
     }
 
     public User getUserByName(String name) {
