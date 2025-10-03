@@ -1,7 +1,6 @@
 package org.ashwin.service;
 
 import org.ashwin.service.enums.GenerationType;
-import org.ashwin.example1.DatabaseConfig;
 import org.ashwin.service.annotations.*;
 
 import java.lang.reflect.Field;
@@ -13,14 +12,15 @@ import java.util.List;
 
 public class RepositoryInvocationHandler implements InvocationHandler {
     private final EntityMeta meta;
-
-    public RepositoryInvocationHandler(EntityMeta meta) throws Exception {
+    private final Class<?> databaseConfigClass;
+    public RepositoryInvocationHandler(EntityMeta meta, Class<?> databaseConfigClass) throws Exception {
         this.meta = meta;
+        this.databaseConfigClass = databaseConfigClass;
         createTableIfNotExists();
     }
 
     private void createTableIfNotExists() throws Exception {
-        Connection conn = ConnectionFactory.getConnection(DatabaseConfig.class);
+        Connection conn = ConnectionFactory.getConnection(databaseConfigClass);
         String url = conn.getMetaData().getURL().toLowerCase();
         String dbType = detectDbType(url);
 
@@ -102,7 +102,7 @@ public class RepositoryInvocationHandler implements InvocationHandler {
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-        Connection conn = ConnectionFactory.getConnection(DatabaseConfig.class);
+        Connection conn = ConnectionFactory.getConnection(databaseConfigClass);
         
         if (method.isAnnotationPresent(Query.class)){
             String sql = method.getAnnotation(Query.class).value();

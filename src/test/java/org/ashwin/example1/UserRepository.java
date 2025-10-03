@@ -1,6 +1,5 @@
 package org.ashwin.example1;
 
-
 import org.ashwin.service.annotations.Query;
 import org.ashwin.service.annotations.Repository;
 
@@ -17,5 +16,5 @@ public interface UserRepository {
     @Query("SELECT * FROM users WHERE username = ? AND email = ?")
     User findUserByUsernameAndEmail(String username, String email);
     void deleteById(int id);
-
+    void update(User user);
 }

@@ -3,36 +3,47 @@ package org.ashwin;
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
+import org.ashwin.example1.User;
+import org.ashwin.example1.UserService;
+import org.ashwin.service.ApplicationContext;
+import org.ashwin.service.annotations.ComponentScan;
 
 /**
  * Unit test for simple App.
  */
-public class AppTest 
-    extends TestCase
-{
-    /**
-     * Create the test case
-     *
-     * @param testName name of the test case
-     */
+@ComponentScan("org.ashwin")
+public class AppTest extends TestCase {
+    ApplicationContext context;
+    UserService userService;
+
     public AppTest( String testName )
     {
         super( testName );
+        context = new ApplicationContext(AppTest.class, DatabaseConfig.class);
+        userService = context.getBean(UserService.class);
     }
 
-    /**
-     * @return the suite of tests being tested
-     */
-    public static Test suite()
-    {
-        return new TestSuite( AppTest.class );
+    public void testCreateUser() throws Exception {
+        User user = new User("ashwin", "ashwin@gmail.com");
+        userService.createUser(user);
+        System.out.println(user);
     }
 
-    /**
-     * Rigourous Test :-)
-     */
-    public void testApp()
-    {
-        assertTrue( true );
+    public void testUpdateUser() throws Exception {
+        User user = userService.getUserByUsernameAndEmail("ashwin", "ashwin@gmail.com");
+        user.setUsername("ashwin123");
+        user.setEmail("ashwin123@gmail.com");
+        userService.updateUser(user);
+
+        user = userService.getUserById(user.getId());
+        System.out.println(user);
     }
+
+    public void testDeleteUser() throws Exception {
+        User user = userService.getUserByUsernameAndEmail("ashwin123", "ashwin123@gmail.com");
+        System.out.println(user);
+        userService.deleteUserById(user.getId());
+        System.out.println("User deleted: " + user.getId());
+    }
+
 }

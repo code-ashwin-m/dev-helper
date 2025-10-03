@@ -1,4 +1,4 @@
-package org.ashwin.example1;
+package org.ashwin;
 
 import org.ashwin.service.annotations.DbConfig;
 

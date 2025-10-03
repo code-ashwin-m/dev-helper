@@ -20,8 +20,10 @@ import java.util.Map;
 public class ApplicationContext {
     private final Map<Class<?>, Object> beanRegistry = new HashMap<>();
     private final Map<Class<?>, EntityMeta> entityRegistry = new HashMap<>();
+    private final Class<?> databaseConfigClass;
 
-    public ApplicationContext(Class<?> mainClass){
+    public ApplicationContext(Class<?> mainClass, Class<?> databaseConfigClass){
+        this.databaseConfigClass = databaseConfigClass;
         try {
             if (!mainClass.isAnnotationPresent(ComponentScan.class)){
                 throw new RuntimeException("Main class must have @ComponentScan annotation");
@@ -78,7 +80,7 @@ public class ApplicationContext {
                 instance = Proxy.newProxyInstance(
                             clazz.getClassLoader(),
                             new Class<?>[] { clazz },
-                            new RepositoryInvocationHandler(meta)
+                            new RepositoryInvocationHandler(meta, databaseConfigClass)
                         );
             }else {
                 instance = clazz.getDeclaredConstructor().newInstance();
