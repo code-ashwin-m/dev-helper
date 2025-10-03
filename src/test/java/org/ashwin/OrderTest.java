@@ -1,7 +1,6 @@
 package org.ashwin;
 
 import junit.framework.TestCase;
-import org.ashwin.example1.User;
 import org.ashwin.example2.Order;
 import org.ashwin.example2.OrderService;
 import org.ashwin.service.ApplicationContext;
